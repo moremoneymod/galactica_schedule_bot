@@ -10,14 +10,16 @@ from parser.utils.json_utils import json_converter, save_json
 class ScheduleParser:
     def __init__(self, document_path: str) -> None:
         self._document_path = document_path
+        if self._document_path.endswith(".xls"):
+            self._convert_xls_to_xlsx()
         self._open_worksheet()
 
-    def _open_worksheet(self) -> None:
-        if self._document_path.endswith(".xls"):
-            xls2xlsx = XLS2XLSX(self._document_path)
-            self._document_path = f"{os.path.splitext(self._document_path)[0]}.xlsx"
-            xls2xlsx.to_xlsx(self._document_path)
+    def _convert_xls_to_xlsx(self) -> None:
+        xls2xlsx = XLS2XLSX(self._document_path)
+        self._document_path = f"{os.path.splitext(self._document_path)[0]}.xlsx"
+        xls2xlsx.to_xlsx(self._document_path)
 
+    def _open_worksheet(self) -> None:
         self._workbook = load_workbook(self._document_path)
         self._worksheet = self._workbook.worksheets[0]
 
@@ -67,7 +69,7 @@ class ScheduleParser:
         else:
             return group_row_index
 
-    def _end_of_sheet(self) -> int:
+    def _end_of_sheet_index(self) -> int:
         index = self._get_group_row_index()
         for row in self._worksheet.iter_rows(min_row=index):
             flag = False
@@ -89,7 +91,7 @@ class ScheduleParser:
         study_days: List = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота"]
         lesson_numbers: List = ['1', '3', '5', '7', '9', "11"]
         end_of_group_row: int = self._end_of_group_row(group_row_index)
-        end_of_sheet: int = self._end_of_sheet()
+        end_of_sheet: int = self._end_of_sheet_index()
 
         for row in self._worksheet.iter_rows(min_row=end_of_group_row + 1, max_row=end_of_sheet):
             for cell in row:
@@ -101,6 +103,7 @@ class ScheduleParser:
                         continue
                 else:
                     cell_value = str(cell.value)
+
                 if cell_value in lesson_numbers:
                     lesson_time = cell_value + f'-{int(cell_value) + 1} урок'
                     if lesson_time not in lessons[day]:
