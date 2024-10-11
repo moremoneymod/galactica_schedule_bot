@@ -95,7 +95,7 @@ class ScheduleParser:
                     if lesson_time not in lessons[day]:
                         lessons[day][lesson_time] = []
                 elif any(day in cell_value.strip().lower() for day in study_days):
-                    day = cell_value.strip()
+                    day = self.format_day(cell_value.strip().lower())
                     if day not in lessons:
                         lessons[day] = {}
                 else:
@@ -119,6 +119,11 @@ class ScheduleParser:
                     schedule[groups[group_index]][day][time] = raw_schedule[day][time][lesson_index]
         print(schedule)
         return schedule
+
+
+    def format_day(self, day: str) -> str:
+        formatted_day = day.split(',')[0]
+        return formatted_day
 
     @staticmethod
     def get_json_schedule(schedule: Dict, file_name) -> None:

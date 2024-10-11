@@ -2,29 +2,17 @@ import urllib.request
 import requests
 from bs4 import BeautifulSoup
 import lxml
-
-# url = 'https://galaxycollege.ru/students/schedule/'
-# r = requests.get(url)
-#
-# soup = BeautifulSoup(r.text, 'html.parser')
-# link = soup.find(name="a", attrs={"class": "mr-1 sf-link sf-link-theme sf-link-dashed"})
-#
-# file_link = "https://galaxycollege.ru" + link["href"]
-#
-# file = requests.get(file_link)
-#
-# with open("shedule.xls", 'wb') as f:
-#     f.write(file.content)
-
 import os
+import asyncio
 
 
 class Downloader:
     SCHEDULE_URL = "https://galaxycollege.ru/students/schedule/"
 
-    def __init__(self, base_file_dir="documents"):
+    def __init__(self, base_file_dir="files"):
         current_path = os.path.dirname(os.path.abspath(__file__))
-        self._base_file_dir = os.path.join(current_path, base_file_dir)
+        self._current_path = os.path.join(current_path, base_file_dir)
+        print(current_path)
 
     def _get_links(self):
         r = requests.get(self.SCHEDULE_URL)
@@ -37,16 +25,16 @@ class Downloader:
 
     def _get_files(self):
         file1 = requests.get(self.file_link1)
-        with open("files/schedule.xls", 'wb') as f:
+        with open(os.path.join(self._current_path, "schedule.xls"), 'wb') as f:
             f.write(file1.content)
+            print(1)
         file2 = requests.get(self.file_link2)
-        with open("files/schedule_zaoch.xls", 'wb') as f:
+        with open(os.path.join(self._current_path, "schedule_zaoch.xls"), 'wb') as f:
             f.write(file2.content)
+            print(2)
 
     def get_schedule(self):
         self._get_links()
         self._get_files()
 
 
-downloader = Downloader()
-downloader.get_schedule()
