@@ -1,7 +1,4 @@
 from typing import Dict
-from aiogram import types
-import os
-import json
 
 
 def create_lessons_message(day: str, lessons: Dict, time: Dict) -> str:

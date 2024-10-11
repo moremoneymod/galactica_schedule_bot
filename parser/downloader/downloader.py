@@ -9,10 +9,9 @@ import asyncio
 class Downloader:
     SCHEDULE_URL = "https://galaxycollege.ru/students/schedule/"
 
-    def __init__(self, base_file_dir="files"):
+    def __init__(self, base_file_dir="files") -> None:
         current_path = os.path.dirname(os.path.abspath(__file__))
         self._current_path = os.path.join(current_path, base_file_dir)
-        print(current_path)
 
     def _get_links(self):
         r = requests.get(self.SCHEDULE_URL)
@@ -23,18 +22,14 @@ class Downloader:
         self.file_link1 = "https://galaxycollege.ru" + link1["href"]
         self.file_link2 = "https://galaxycollege.ru" + link2["href"]
 
-    def _get_files(self):
+    def _get_files(self) -> None:
         file1 = requests.get(self.file_link1)
         with open(os.path.join(self._current_path, "schedule.xls"), 'wb') as f:
             f.write(file1.content)
-            print(1)
         file2 = requests.get(self.file_link2)
         with open(os.path.join(self._current_path, "schedule_zaoch.xls"), 'wb') as f:
             f.write(file2.content)
-            print(2)
 
-    def get_schedule(self):
+    def get_schedule(self) -> None:
         self._get_links()
         self._get_files()
-
-

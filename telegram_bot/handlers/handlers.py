@@ -23,5 +23,7 @@ async def command_help(message: Message) -> None:
 @router.message(Command('schedule'))
 async def command_articles(message: Message) -> None:
     builder = InlineKeyboardBuilder()
-    builder.button(text="Выбрать группу", callback_data="select_group")
+    builder.button(text="Очная форма обучения", callback_data="ochnaya")
+    builder.button(text="Заочная форма обучения", callback_data="zaochnaya")
+    builder.adjust(1, 1)
     await message.answer("~~~ Просмотр расписания ~~~", reply_markup=builder.as_markup())
