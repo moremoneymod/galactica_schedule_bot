@@ -4,7 +4,7 @@ from xls2xlsx import XLS2XLSX
 from openpyxl import load_workbook
 from typing import List, Dict, Any
 import re
-from parser.utils.json_utils import json_converter, save_json
+from parser.utils.json_utils import json_converter, save_json, JSONConverter, JSONFileManager
 
 
 class ScheduleParser:
@@ -13,6 +13,8 @@ class ScheduleParser:
         if self._document_path.endswith(".xls"):
             self._convert_xls_to_xlsx()
         self._open_worksheet()
+        self.converter = JSONConverter
+        self.json_manager = JSONFileManager
 
     def _convert_xls_to_xlsx(self) -> None:
         xls2xlsx = XLS2XLSX(self._document_path)
@@ -61,17 +63,17 @@ class ScheduleParser:
                     study_group_coordinates.append(cell.column)
         return study_group_coordinates
 
-    def _end_of_group_row(self, group_row_index) -> int:
+    def _get_lessons_row_index(self, group_row_index) -> int:
         group_columns = self._get_group_coordinates(self._get_group_row_index())
-        cell = self._worksheet.cell(group_row_index, group_columns[0])
-        if self._worksheet.cell(group_row_index + 1, group_columns[0]).value is None:
-            return group_row_index + 1
+        next_cell = self._worksheet.cell(group_row_index + 1, group_columns[0])
+        if next_cell.value is None:
+            return group_row_index + 2
         else:
-            return group_row_index
+            return group_row_index + 1
 
     def _end_of_sheet_index(self) -> int:
-        index = self._get_group_row_index()
-        for row in self._worksheet.iter_rows(min_row=index):
+        index = self._get_lessons_row_index(self._get_group_row_index())
+        for row in self._worksheet.iter_rows(min_row=index + 1):
             flag = False
             for cell in row:
                 if cell.value is not None:
@@ -79,7 +81,7 @@ class ScheduleParser:
             if flag is True:
                 index += 1
             else:
-                return index - 2
+                return index - 1
 
     def _read_sheet(self) -> Dict:
         lesson_time: str | None = None
@@ -90,10 +92,10 @@ class ScheduleParser:
 
         study_days: List = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота"]
         lesson_numbers: List = ['1', '3', '5', '7', '9', "11"]
-        end_of_group_row: int = self._end_of_group_row(group_row_index)
-        end_of_sheet: int = self._end_of_sheet_index()
 
-        for row in self._worksheet.iter_rows(min_row=end_of_group_row + 1, max_row=end_of_sheet):
+        first_row_of_lessons: int = self._get_lessons_row_index(group_row_index)
+        end_of_sheet: int = self._end_of_sheet_index()
+        for row in self._worksheet.iter_rows(min_row=first_row_of_lessons, max_row=end_of_sheet):
             for cell in row:
                 cell_value: Any = cell.value
                 if cell_value is None:
@@ -103,7 +105,6 @@ class ScheduleParser:
                         continue
                 else:
                     cell_value = str(cell.value)
-
                 if cell_value in lesson_numbers:
                     lesson_time = cell_value + f'-{int(cell_value) + 1} урок'
                     if lesson_time not in lessons[day]:
@@ -138,14 +139,12 @@ class ScheduleParser:
         formatted_day = day.split(',')[0]
         return formatted_day
 
-    def get_json_schedule(self, file_name) -> None:
+    def get_json_schedule(self, file_name: str) -> None:
         schedule = self._get_schedule_for_each_group()
-        json_schedule = json_converter(schedule)
-        print(json_schedule)
-        save_json(json_schedule, file_name)
+        json_schedule = self.converter.convert_dict_to_json(schedule)
+        self.json_manager.save_file(json_file=json_schedule, file_name=file_name)
 
-    def get_json_groups(self, file_name) -> None:
+    def get_json_groups(self, file_name: str) -> None:
         groups = self.get_groups()
-        json_groups = json_converter(groups)
-        print(json_groups)
-        save_json(json_groups, file_name)
+        json_groups = self.converter.convert_list_to_json(groups)
+        self.json_manager.save_file(json_file=json_groups, file_name=file_name)

@@ -13,7 +13,6 @@ from parser.parser import ScheduleParser
 from parser.downloader.downloader import Downloader
 import config
 from handlers import handlers, callback_handlers
-import os
 from pathlib import Path
 
 bot = Bot(token=config.BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
@@ -25,11 +24,16 @@ downloader = Downloader()
 
 
 def update_schedule():
-    downloader.get_schedule()
-    parser1 = ScheduleParser(str(Path(__file__).resolve().parents[1]) + "/parser/downloader/files/schedule.xls")
-    parser2 = ScheduleParser(str(Path(__file__).resolve().parents[1]) + "/parser/downloader/files/schedule_zaoch.xls")
-    parser1.get_json_schedule(file_name="../files/schedule.json")
-    parser2.get_json_schedule(file_name="../files/schedule_zaoch.json")
+    downloader.download_schedule()
+    current_path = str(Path(__file__).resolve().parents[1])
+    parser1 = ScheduleParser(current_path + "/parser/downloader/files/schedule.xls")
+    parser2 = ScheduleParser(current_path + "/parser/downloader/files/schedule_zaoch.xls")
+    try:
+        parser1.get_json_schedule(file_name=current_path + "/files/schedule.json")
+        parser2.get_json_schedule(file_name=current_path + "/files/schedule_zaoch.json")
+        logging.info(msg="Расписание успешно обновлено")
+    except Exception as e:
+        logging.error("Ошибка при обновлении расписания")
 
 
 async def main():
