@@ -46,7 +46,6 @@ class ScheduleParser(ScheduleParserInterface):
             if flag is True:
                 last_row_index += 1
             else:
-                print(100, last_row_index)
                 return last_row_index
 
     def _get_study_groups(self) -> list[str]:
@@ -67,13 +66,9 @@ class ScheduleParser(ScheduleParserInterface):
         sheet = self._worksheet
         lesson_numbers_column_coordinate = self._get_study_days_column_coordinate()
         start_index = self._get_group_row_index() + 1
-        print(98, sheet.cell(lesson_numbers_column_coordinate, start_index).value)
         if sheet.cell(start_index, lesson_numbers_column_coordinate).value is None:
             start_index += 1
-        print(99, start_index)
-        print(97, sheet.cell(start_index, lesson_numbers_column_coordinate).value, lesson_numbers_column_coordinate, start_index)
         last_row_index = self._end_of_sheet_index()
-        print([row_index for row_index in range(start_index, last_row_index + 1)])
         return [row_index for row_index in range(start_index, last_row_index + 1)]
 
     def _get_study_days_and_their_row_indexes(self) -> dict:
@@ -114,7 +109,6 @@ class ScheduleParser(ScheduleParserInterface):
 
             cell = sheet.cell(row_index, col_index)
             subject_name_value = cell.value
-            # print(11, sheet.cell(cell.row, study_days_column_coordinate).value, cell.row, study_group)
             lesson_time_value = int(sheet.cell(cell.row, study_days_column_coordinate).value)
 
             if cell.value is None and int(sheet.cell(row_index, study_days_column_coordinate).value) % 2 != 0:
@@ -174,8 +168,6 @@ class ScheduleParser(ScheduleParserInterface):
         for group_schedule in schedule_in_list:
             study_group = list(group_schedule.keys())[0]
             schedule[study_group] = group_schedule[study_group]
-            print(study_group)
-        print(schedule)
         return schedule
 
     @staticmethod
