@@ -8,109 +8,174 @@ class ScheduleParser(ScheduleParserInterface):
         self._worksheet = worksheet
 
     def _get_group_row_index(self) -> int:
-        index = 0
+        group_row_index = 0
         for row in self._worksheet.iter_rows():
-            index += 1
+            group_row_index += 1
             for cell in row:
                 if cell.value is not None:
                     cell_value = str(cell.value)
                     if re.match(r'^[А-Яа-я]{1,3} - \d{2}', cell_value) is not None:
-                        return index
+                        return group_row_index
 
-    def _get_group_coordinates(self, group_row_index: int) -> List:
-        study_group_coordinates: List = []
-        for row in self._worksheet.iter_rows(min_row=group_row_index, max_row=group_row_index):
-            for cell in row:
-                if cell.value is None or cell.value.count('-') == 0:
-                    continue
-                else:
-                    study_group_coordinates.append(cell.column)
+    def _get_study_groups_column_coordinates(self) -> list[int]:
+        groups_row_index = self._get_group_row_index()
+        study_group_coordinates = []
+        for cell in self._worksheet[groups_row_index]:
+            if cell.value is None or cell.value.count('-') == 0:
+                continue
+            else:
+                study_group_coordinates.append(cell.column)
         return study_group_coordinates
 
     def _get_lessons_row_index(self, group_row_index) -> int:
-        group_columns = self._get_group_coordinates(self._get_group_row_index())
-        next_cell = self._worksheet.cell(group_row_index + 1, group_columns[0])
+        group_columns = self._get_study_groups_column_coordinates()
+        next_cell = self._worksheet.cell(group_row_index + 1, group_columns[0] - 1)
         if next_cell.value is None:
             return group_row_index + 2
         else:
             return group_row_index + 1
 
     def _end_of_sheet_index(self) -> int:
-        index = self._get_lessons_row_index(self._get_group_row_index())
-        for row in self._worksheet.iter_rows(min_row=index + 1):
+        last_row_index = self._get_lessons_row_index(self._get_group_row_index())
+
+        for row in self._worksheet.iter_rows(min_row=last_row_index + 1):
             flag = False
             for cell in row:
                 if cell.value is not None:
                     flag = True
             if flag is True:
-                index += 1
+                last_row_index += 1
             else:
-                return index - 1
+                print(100, last_row_index)
+                return last_row_index
 
-    def get_groups(self) -> List:
+    def _get_study_groups(self) -> list[str]:
+        study_groups_row_index = self._get_group_row_index()
+        study_groups = []
+        sheet = self._worksheet
+        study_groups_column_coordinates = self._get_study_groups_column_coordinates()
+        for column_index in study_groups_column_coordinates:
+            cell_value = str(sheet.cell(study_groups_row_index, column_index).value)
+            if cell_value.count('-') < 1:
+                continue
+            group_name_value = cell_value
+            group_name = self._format_study_group_name(group_name=group_name_value)
+            study_groups.append(group_name)
+        return study_groups
+
+    def _get_row_coordinates_for_subjects(self) -> list:
+        sheet = self._worksheet
+        lesson_numbers_column_coordinate = self._get_study_days_column_coordinate()
+        start_index = self._get_group_row_index() + 1
+        print(98, sheet.cell(lesson_numbers_column_coordinate, start_index).value)
+        if sheet.cell(start_index, lesson_numbers_column_coordinate).value is None:
+            start_index += 1
+        print(99, start_index)
+        print(97, sheet.cell(start_index, lesson_numbers_column_coordinate).value, lesson_numbers_column_coordinate, start_index)
+        last_row_index = self._end_of_sheet_index()
+        print([row_index for row_index in range(start_index, last_row_index + 1)])
+        return [row_index for row_index in range(start_index, last_row_index + 1)]
+
+    def _get_study_days_and_their_row_indexes(self) -> dict:
+        start_row_index = self._get_group_row_index() + 1
+        column_index_of_week_days = self._get_study_groups_column_coordinates()[0] - 2
+        last_row_index = self._end_of_sheet_index() + 1
+
+        study_days_and_their_row_index = {}
+        for row in range(start_row_index, last_row_index):
+            cell = self._worksheet.cell(row, column_index_of_week_days)
+            if cell.value is None:
+                continue
+            else:
+                study_day = self._format_study_day(study_day=cell.value)
+                study_days_and_their_row_index[cell.row] = study_day
+        return study_days_and_their_row_index
+
+    @staticmethod
+    def _format_study_day(study_day: str) -> str:
+        return study_day.strip()
+
+    def _get_study_days_column_coordinate(self) -> int:
+        group_column_coordinates = self._get_study_groups_column_coordinates()
+        return group_column_coordinates[0] - 1
+
+    def _read_column(self, col_index: int, row_indexes, days_and_their_indexes) -> dict:
         group_row_index = self._get_group_row_index()
-        groups: List = []
-        for row in self._worksheet.iter_rows(min_row=group_row_index, max_row=group_row_index):
-            for cell in row:
-                cell_value: str = str(cell.value)
-                if cell_value.count('-') >= 1:
-                    if cell_value.count('-') > 1:
-                        if cell_value.count(',') == 0:
-                            cell_value = re.sub('  +', ',', cell_value)
-                        cell_value = cell_value.replace(' ', '')
-                        cell_value = cell_value.replace(',', ", ")
-                    else:
-                        cell_value = cell_value.replace(' ', '')
-                    groups.append(cell_value)
-        return groups
+        study_days_column_coordinate = self._get_study_days_column_coordinate()
 
-    def _read_sheet(self) -> Dict:
-        lesson_time: str | None = None
-        day: str | None = None
-        lessons: Dict = {}
-        group_row_index: int = self._get_group_row_index()
-        group_column_coordinates: List = self._get_group_coordinates(group_row_index)
+        sheet = self._worksheet
+        current_day = ''
+        schedule_for_this_column = {}
 
-        study_days: List = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота"]
-        lesson_numbers: List = ['1', '3', '5', '7', '9', "11"]
+        study_group = sheet.cell(group_row_index, col_index).value
+        study_group = self._format_study_group_name(group_name=study_group)
+        schedule_for_this_column[study_group] = {}
+        for row_index in row_indexes:
 
-        first_row_of_lessons: int = self._get_lessons_row_index(group_row_index)
-        end_of_sheet: int = self._end_of_sheet_index()
-        for row in self._worksheet.iter_rows(min_row=first_row_of_lessons, max_row=end_of_sheet):
-            for cell in row:
-                cell_value: Any = cell.value
-                if cell_value is None:
-                    if cell.column in group_column_coordinates:
-                        cell_value = "Нет пары"
-                    else:
-                        continue
-                else:
-                    cell_value = str(cell.value)
-                if cell_value in lesson_numbers:
-                    lesson_time = cell_value + f'-{int(cell_value) + 1} урок'
-                    if lesson_time not in lessons[day]:
-                        lessons[day][lesson_time] = []
-                elif any(day in cell_value.strip().lower() for day in study_days):
-                    day = self._format_day(cell_value.strip().lower())
-                    if day not in lessons:
-                        lessons[day] = {}
-                else:
-                    if len(cell_value) > 1:
-                        subject: str = re.sub(" +", " ", cell_value.strip())
-                        lessons[day][lesson_time].append(subject)
-        return lessons
+            cell = sheet.cell(row_index, col_index)
+            subject_name_value = cell.value
+            # print(11, sheet.cell(cell.row, study_days_column_coordinate).value, cell.row, study_group)
+            lesson_time_value = int(sheet.cell(cell.row, study_days_column_coordinate).value)
 
-    def _get_schedule_for_each_group(self) -> Dict:
-        groups: List = self.get_groups()
-        raw_schedule: Dict = self._read_sheet()
-        schedule: Dict = {}
-        for group_index in range(len(groups)):
-            lesson_index: int = group_index
-            schedule[groups[group_index]] = {}
-            for day in raw_schedule:
-                schedule[groups[group_index]][day] = {}
-                for time in raw_schedule[day]:
-                    schedule[groups[group_index]][day][time] = raw_schedule[day][time][lesson_index]
+            if cell.value is None and int(sheet.cell(row_index, study_days_column_coordinate).value) % 2 != 0:
+                subject_name_value = "Нет пары"
+            elif cell.value is None:
+                continue
+
+            if row_index in days_and_their_indexes:
+                current_day = days_and_their_indexes[row_index]
+
+            subject_name = self._format_subject_name(subject_name=subject_name_value)
+            lesson_time = self._format_lesson_time(lesson_time=lesson_time_value)
+
+            if current_day not in schedule_for_this_column[study_group]:
+                schedule_for_this_column[study_group][current_day] = {}
+
+            schedule_for_this_column[study_group][current_day][lesson_time] = subject_name
+        return schedule_for_this_column
+
+    @staticmethod
+    def _format_study_group_name(group_name: str) -> str:
+        formatted_group_name = group_name
+        if formatted_group_name.count('-') > 1:
+            if formatted_group_name.count(',') == 0:
+                formatted_group_name = re.sub('  +', ',', formatted_group_name)
+            formatted_group_name = formatted_group_name.replace(' ', '')
+            formatted_group_name = formatted_group_name.replace(',', ", ")
+        else:
+            formatted_group_name = formatted_group_name.replace(' ', '')
+        return formatted_group_name
+
+    @staticmethod
+    def _format_subject_name(subject_name: str) -> str:
+        return re.sub(" +", " ", subject_name.strip())
+
+    @staticmethod
+    def _format_lesson_time(lesson_time: int) -> str:
+        formated_lesson_time = f"{lesson_time}-{lesson_time + 1} урок"
+        return formated_lesson_time
+
+    def _read_columns_in_list(self) -> list:
+        study_days_and_their_row_indexes = self._get_study_days_and_their_row_indexes()
+        row_indexes = self._get_row_coordinates_for_subjects()
+        column_indexes = self._get_study_groups_column_coordinates()
+
+        schedule_in_rows = []
+
+        for column_index in column_indexes:
+            study_in_row = self._read_column(col_index=column_index, row_indexes=row_indexes,
+                                             days_and_their_indexes=study_days_and_their_row_indexes)
+            schedule_in_rows.append(study_in_row)
+        return schedule_in_rows
+
+    @staticmethod
+    def _create_schedule_dict_from_list(schedule_in_list) -> dict:
+        schedule = {}
+        for group_schedule in schedule_in_list:
+            study_group = list(group_schedule.keys())[0]
+            schedule[study_group] = group_schedule[study_group]
+            print(study_group)
+        print(schedule)
         return schedule
 
     @staticmethod
@@ -118,6 +183,8 @@ class ScheduleParser(ScheduleParserInterface):
         formatted_day = day.split(',')[0]
         return formatted_day
 
-    def parse_schedule(self) -> Dict:
-        schedule = self._get_schedule_for_each_group()
+    def parse_schedule(self) -> dict:
+        schedule_in_list = self._read_columns_in_list()
+        schedule = self._create_schedule_dict_from_list(schedule_in_list=schedule_in_list)
+        self._get_study_groups()
         return schedule
