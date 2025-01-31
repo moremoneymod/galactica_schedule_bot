@@ -111,7 +111,7 @@ class ScheduleParser(ScheduleParserInterface):
             subject_name_value = cell.value
             lesson_time_value = int(sheet.cell(cell.row, study_days_column_coordinate).value)
 
-            if cell.value is None and int(sheet.cell(row_index, study_days_column_coordinate).value) % 2 != 0:
+            if cell.value is None and lesson_time_value % 2 != 0:
                 subject_name_value = "Нет пары"
             elif cell.value is None:
                 continue
