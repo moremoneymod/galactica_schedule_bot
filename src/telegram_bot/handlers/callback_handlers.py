@@ -5,144 +5,82 @@ from aiogram import F
 import json
 from utils import utils
 from pathlib import Path
+from src.core.database.database import read_schedule, read_groups
+from src.telegram_bot.keyboards.keyboards_for_callback_handlers import *
 
 router = Router()
 
 
 @router.callback_query(F.data == "select_type")
 async def callback_query_handler(callback_query: aiogram.types.CallbackQuery) -> None:
-    builder = InlineKeyboardBuilder()
-    builder.button(text="Очная форма обучения", callback_data="full_time")
-    builder.button(text="Заочная форма обучения", callback_data="part_time")
-    builder.adjust(1, 1)
-    await callback_query.message.edit_text("~~~ Просмотр расписания ~~~", reply_markup=builder.as_markup())
+    keyboard_for_study_type = create_keyboard_for_study_type()
+    await callback_query.message.edit_text("~~~ Просмотр расписания ~~~",
+                                           reply_markup=keyboard_for_study_type)
 
 
 @router.callback_query(F.data == "full_time")
 async def callback_query_handler(callback_query: aiogram.types.CallbackQuery) -> None:
-    root_path = str(Path(__file__).resolve().parents[3])
-
-    try:
-        with open(root_path + "/files/groups_full_time.json", encoding='utf-8') as file:
-            print(root_path + "/files/groups_full_time.json")
-            study_groups = json.load(file)
-    except Exception as e:
-        await callback_query.answer("Выполняется обновление расписания, попробуйте позже", show_alert=True)
-        return
-    builder = InlineKeyboardBuilder()
-    for group in study_groups:
-        builder.button(text=group, callback_data=f"ftgroup_{group}")
-    builder.button(text="Назад", callback_data="select_type")
-    builder.adjust(1, 1)
-    await callback_query.message.edit_text("~~~ Выберите группу ~~~", reply_markup=builder.as_markup())
+    study_groups = await read_groups(group_type="full_time")
+    keyboard_for_full_time_study_groups = create_keyboard_for_study_groups(study_groups)
+    await callback_query.message.edit_text("~~~ Выберите группу ~~~",
+                                           reply_markup=keyboard_for_full_time_study_groups)
 
 
 @router.callback_query(F.data == "part_time")
 async def callback_query_handler(callback_query: aiogram.types.CallbackQuery) -> None:
-    root_path = str(Path(__file__).resolve().parents[3])
-
-    try:
-        with open(root_path + "/files/groups_part_time.json", encoding='utf-8') as file:
-            print(root_path + "/files/groups_part_time.json")
-            study_groups = json.load(file)
-    except Exception as e:
-        await callback_query.answer("Выполняется обновление расписания, попробуйте позже", show_alert=True)
-        return
-    builder = InlineKeyboardBuilder()
-    for group in study_groups:
-        builder.button(text=group, callback_data=f"ptgroup_{group}")
-    builder.button(text="Назад", callback_data="select_type")
-    builder.adjust(1, 1)
-    await callback_query.message.edit_text("~~~ Выберите группу ~~~", reply_markup=builder.as_markup())
+    study_groups = await read_groups(group_type="part_time")
+    keyboard_for_part_time_study_groups = create_keyboard_for_study_groups(study_groups)
+    await callback_query.message.edit_text("~~~ Выберите группу ~~~",
+                                           reply_markup=keyboard_for_part_time_study_groups)
 
 
 @router.callback_query(F.data.startswith('ftgroup_'))
 async def callback_query_handler(callback_query: aiogram.types.CallbackQuery) -> None:
     await callback_query.message.delete()
     group = callback_query.data.replace('ftgroup_', '')
-    builder = InlineKeyboardBuilder()
-    for day in ["понедельник", "вторник", "среда", "четверг", "пятница"]:
-        builder.button(text=day, callback_data=f"ftgr_{group}!d_{day}")
-    builder.button(text="Назад", callback_data="full_time")
-    builder.adjust(1, 1)
-    await callback_query.message.answer("~~~ Выберите день недели ~~~", reply_markup=builder.as_markup())
+    study_days = ["понедельник", "вторник", "среда", "четверг", "пятница"]
+    keyboard_for_study_days = create_keyboard_for_study_days(study_days=study_days, study_group=group,
+                                                             study_type="ftgr_")
+    await callback_query.message.answer("~~~ Выберите день недели ~~~",
+                                        reply_markup=keyboard_for_study_days)
 
 
 @router.callback_query(F.data.startswith('ptgroup_'))
 async def callback_query_handler(callback_query: aiogram.types.CallbackQuery) -> None:
     await callback_query.message.delete()
     group = callback_query.data.replace('ptgroup_', '')
-    builder = InlineKeyboardBuilder()
-    for day in ["четверг", "пятница", "суббота"]:
-        builder.button(text=day, callback_data=f"ptgr_{group}!d_{day}")
-    builder.button(text="Назад", callback_data="part_time")
-    builder.adjust(1, 1)
-    await callback_query.message.answer("~~~ Выберите день недели ~~~", reply_markup=builder.as_markup())
+    study_days = ["четверг", "пятница", "суббота"]
+    keyboard_for_study_days = create_keyboard_for_study_days(study_days=study_days, study_group=group,
+                                                             study_type="ptgr_")
+    await callback_query.message.answer("~~~ Выберите день недели ~~~",
+                                        reply_markup=keyboard_for_study_days)
 
 
 @router.callback_query(F.data.startswith("ftgr_"))
 async def callback_query_handler(callback_query: aiogram.types.CallbackQuery) -> None:
-    data = callback_query.data.split("!")
-    group = data[0].replace("ftgr_", '')
-    day = data[1].replace("d_", '')
-    course = group.split('-')[1][0]
+    callback_data = callback_query.data.split("!")
+    study_group = callback_data[0].replace("ftgr_", '')
+    study_day = callback_data[1].replace("d_", '')
 
-    root_path = str(Path(__file__).resolve().parents[3])
-    builder = InlineKeyboardBuilder()
+    lessons = await read_schedule(group_name=study_group, study_type="full_time", week_day=study_day)
 
-    try:
-        with open(root_path + "/files/schedule_full_time.json", 'r', encoding='utf-8') as f:
-            lessons_data = json.load(f)
+    message = utils.create_lessons_message(study_day, lessons)
 
-        if day in lessons_data[group]:
-            lessons = lessons_data[group][day]
-        else:
-            lessons = None
+    keyboard_for_current_day = create_keyboard_for_selected_study_day(callback_data=f"ftgroup_{study_group}")
 
-        with open(root_path + "/files/time.json", 'r', encoding='utf-8') as f:
-            time_data = json.load(f)
-
-        time = time_data[course]
-
-        message = utils.create_lessons_message(day, lessons, time)
-
-        builder.button(text="Назад", callback_data=f"ftgroup_{group}")
-        builder.adjust(1, 1)
-        await callback_query.message.edit_text(message, reply_markup=builder.as_markup())
-
-    except Exception as e:
-        await callback_query.message.answer(text="Возникли проблемы при чтении расписания")
+    await callback_query.message.edit_text(message, reply_markup=keyboard_for_current_day)
 
 
 @router.callback_query(F.data.startswith("ptgr_"))
 async def callback_query_handler(callback_query: aiogram.types.CallbackQuery) -> None:
-    data = callback_query.data.split("!")
-    group = data[0].replace("ptgr_", '')
-    day = data[1].replace("d_", '')
-    course = group.split('-')[1][0]
+    callback_data = callback_query.data.split("!")
+    study_group = callback_data[0].replace("ptgr_", '')
+    study_day = callback_data[1].replace("d_", '')
 
-    root_path = str(Path(__file__).resolve().parents[3])
-    builder = InlineKeyboardBuilder()
+    lessons = await read_schedule(group_name=study_group, study_type="part_time", week_day=study_day)
 
-    try:
-        with open(root_path + "/files/schedule_part_time.json", 'r', encoding='utf-8') as f:
-            lessons_data = json.load(f)
+    message = utils.create_lessons_message(study_day, lessons)
 
-        if day in lessons_data[group]:
-            lessons = lessons_data[group][day]
-        else:
-            lessons = None
+    keyboard_for_current_day = create_keyboard_for_selected_study_day(callback_data=f"ptgroup_{study_group}")
 
-        with open(root_path + "/files/time.json", 'r', encoding='utf-8') as f:
-            time_data = json.load(f)
-
-        time = time_data[course]
-
-        message = utils.create_lessons_message(day, lessons, time)
-
-        builder.button(text="Назад", callback_data=f"ptgroup_{group}")
-        builder.adjust(1, 1)
-        await callback_query.message.edit_text(message, reply_markup=builder.as_markup())
-
-    except Exception as e:
-        await callback_query.message.answer(text="Возникли проблемы при чтении расписания")
+    await callback_query.message.edit_text(message, reply_markup=keyboard_for_current_day)

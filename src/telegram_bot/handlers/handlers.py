@@ -1,9 +1,10 @@
 from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message
-from aiogram.utils.keyboard import InlineKeyboardBuilder
+from src.telegram_bot.keyboards.keyboards_for_handlers import create_keyboard_for_study_type
 
 router = Router()
+
 
 
 @router.message(Command('start'))
@@ -21,8 +22,5 @@ async def command_help(message: Message) -> None:
 
 @router.message(Command('schedule'))
 async def command_schedule(message: Message) -> None:
-    builder = InlineKeyboardBuilder()
-    builder.button(text="Очная форма обучения", callback_data="full_time")
-    builder.button(text="Заочная форма обучения", callback_data="part_time")
-    builder.adjust(1, 1)
-    await message.answer("~~~ Просмотр расписания ~~~", reply_markup=builder.as_markup())
+    keyboard_for_groups = create_keyboard_for_study_type()
+    await message.answer("~~~ Просмотр расписания ~~~", reply_markup=keyboard_for_groups)
