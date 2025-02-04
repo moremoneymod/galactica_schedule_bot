@@ -48,7 +48,7 @@ class ScheduleParser(ScheduleParserInterface):
             else:
                 return last_row_index
 
-    def _get_study_groups(self) -> list[str]:
+    def get_study_groups(self) -> list[str]:
         study_groups_row_index = self._get_group_row_index()
         study_groups = []
         sheet = self._worksheet
@@ -64,39 +64,39 @@ class ScheduleParser(ScheduleParserInterface):
 
     def _get_row_coordinates_for_subjects(self) -> list:
         sheet = self._worksheet
-        lesson_numbers_column_coordinate = self._get_study_days_column_coordinate()
+        lesson_numbers_column_coordinate = self._get_week_days_column_coordinate()
         start_index = self._get_group_row_index() + 1
         if sheet.cell(start_index, lesson_numbers_column_coordinate).value is None:
             start_index += 1
         last_row_index = self._end_of_sheet_index()
         return [row_index for row_index in range(start_index, last_row_index + 1)]
 
-    def _get_study_days_and_their_row_indexes(self) -> dict:
+    def _get_week_days_and_their_row_indexes(self) -> dict:
         start_row_index = self._get_group_row_index() + 1
         column_index_of_week_days = self._get_study_groups_column_coordinates()[0] - 2
         last_row_index = self._end_of_sheet_index() + 1
 
-        study_days_and_their_row_index = {}
+        week_days_and_their_row_index = {}
         for row in range(start_row_index, last_row_index):
             cell = self._worksheet.cell(row, column_index_of_week_days)
             if cell.value is None:
                 continue
             else:
-                study_day = self._format_study_day(study_day=cell.value)
-                study_days_and_their_row_index[cell.row] = study_day
-        return study_days_and_their_row_index
+                study_day = self._format_week_day(week_day=cell.value)
+                week_days_and_their_row_index[cell.row] = study_day
+        return week_days_and_their_row_index
 
     @staticmethod
-    def _format_study_day(study_day: str) -> str:
-        return study_day.strip()
+    def _format_week_day(week_day: str) -> str:
+        return week_day.strip()
 
-    def _get_study_days_column_coordinate(self) -> int:
+    def _get_week_days_column_coordinate(self) -> int:
         group_column_coordinates = self._get_study_groups_column_coordinates()
         return group_column_coordinates[0] - 1
 
-    def _read_column(self, col_index: int, row_indexes, days_and_their_indexes) -> dict:
+    def _read_column(self, col_index: int, row_indexes, week_days_and_their_indexes) -> dict:
         group_row_index = self._get_group_row_index()
-        study_days_column_coordinate = self._get_study_days_column_coordinate()
+        week_days_column_coordinate = self._get_week_days_column_coordinate()
 
         sheet = self._worksheet
         current_day = ''
@@ -109,15 +109,15 @@ class ScheduleParser(ScheduleParserInterface):
 
             cell = sheet.cell(row_index, col_index)
             subject_name_value = cell.value
-            lesson_time_value = int(sheet.cell(cell.row, study_days_column_coordinate).value)
+            lesson_time_value = int(sheet.cell(cell.row, week_days_column_coordinate).value)
 
             if cell.value is None and lesson_time_value % 2 != 0:
                 subject_name_value = "Нет пары"
             elif cell.value is None:
                 continue
 
-            if row_index in days_and_their_indexes:
-                current_day = days_and_their_indexes[row_index]
+            if row_index in week_days_and_their_indexes:
+                current_day = week_days_and_their_indexes[row_index]
 
             subject_name = self._format_subject_name(subject_name=subject_name_value)
             lesson_time = self._format_lesson_time(lesson_time=lesson_time_value)
@@ -150,7 +150,7 @@ class ScheduleParser(ScheduleParserInterface):
         return formated_lesson_time
 
     def _read_columns_in_list(self) -> list:
-        study_days_and_their_row_indexes = self._get_study_days_and_their_row_indexes()
+        study_days_and_their_row_indexes = self._get_week_days_and_their_row_indexes()
         row_indexes = self._get_row_coordinates_for_subjects()
         column_indexes = self._get_study_groups_column_coordinates()
 
@@ -158,7 +158,7 @@ class ScheduleParser(ScheduleParserInterface):
 
         for column_index in column_indexes:
             study_in_row = self._read_column(col_index=column_index, row_indexes=row_indexes,
-                                             days_and_their_indexes=study_days_and_their_row_indexes)
+                                             week_days_and_their_indexes=study_days_and_their_row_indexes)
             schedule_in_rows.append(study_in_row)
         return schedule_in_rows
 
@@ -178,5 +178,5 @@ class ScheduleParser(ScheduleParserInterface):
     def parse_schedule(self) -> dict:
         schedule_in_list = self._read_columns_in_list()
         schedule = self._create_schedule_dict_from_list(schedule_in_list=schedule_in_list)
-        self._get_study_groups()
+        self.get_study_groups()
         return schedule
