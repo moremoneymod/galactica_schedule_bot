@@ -109,9 +109,9 @@ class ScheduleParser(ScheduleParserInterface):
 
             cell = sheet.cell(row_index, col_index)
             subject_name_value = cell.value
-            lesson_time_value = int(sheet.cell(cell.row, week_days_column_coordinate).value)
+            lesson_num_value = int(sheet.cell(cell.row, week_days_column_coordinate).value)
 
-            if cell.value is None and lesson_time_value % 2 != 0:
+            if cell.value is None and lesson_num_value % 2 != 0:
                 subject_name_value = "Нет пары"
             elif cell.value is None:
                 continue
@@ -120,12 +120,12 @@ class ScheduleParser(ScheduleParserInterface):
                 current_day = week_days_and_their_indexes[row_index]
 
             subject_name = self._format_subject_name(subject_name=subject_name_value)
-            lesson_time = self._format_lesson_time(lesson_time=lesson_time_value)
+            lesson_num = self._format_lesson_num(lesson_num=lesson_num_value)
 
             if current_day not in schedule_for_this_column[study_group]:
                 schedule_for_this_column[study_group][current_day] = {}
 
-            schedule_for_this_column[study_group][current_day][lesson_time] = subject_name
+            schedule_for_this_column[study_group][current_day][lesson_num] = subject_name
         return schedule_for_this_column
 
     @staticmethod
@@ -145,8 +145,9 @@ class ScheduleParser(ScheduleParserInterface):
         return re.sub(" +", " ", subject_name.strip())
 
     @staticmethod
-    def _format_lesson_time(lesson_time: int) -> str:
-        formated_lesson_time = f"{lesson_time}-{lesson_time + 1} урок"
+    def _format_lesson_num(lesson_num: int) -> str:
+        lessons_nums = {1: 1, 3: 2, 5: 3, 7: 4, 9: 5, 11: 6, 13: 7}
+        formated_lesson_time = f"{lessons_nums[lesson_num]} пара"
         return formated_lesson_time
 
     def _read_columns_in_list(self) -> list:
