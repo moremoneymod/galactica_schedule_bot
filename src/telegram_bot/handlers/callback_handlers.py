@@ -3,12 +3,17 @@ from aiogram import Router
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram import F
 import json
+
+from src.core.database.database import read_groups, read_schedule
 from utils import utils
 from pathlib import Path
-from src.core.database.database import read_schedule, read_groups
-from src.telegram_bot.keyboards.keyboards_for_callback_handlers import *
+# from src.core.database.database import read_schedule, read_groups
+from src.telegram_bot.keyboards.keyboards_for_handlers import *
+import asyncio
 
 router = Router()
+
+
 
 
 @router.callback_query(F.data == "select_type")
@@ -32,7 +37,6 @@ async def callback_query_handler(callback_query: aiogram.types.CallbackQuery) ->
     keyboard_for_part_time_study_groups = create_keyboard_for_study_groups(study_groups)
     await callback_query.message.edit_text("~~~ Выберите группу ~~~",
                                            reply_markup=keyboard_for_part_time_study_groups)
-
 
 @router.callback_query(F.data.startswith('ftgroup_'))
 async def callback_query_handler(callback_query: aiogram.types.CallbackQuery) -> None:

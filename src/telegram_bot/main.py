@@ -1,57 +1,75 @@
 import asyncio
 import logging
-
+import psutil
+from multiprocessing import set_start_method
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from apscheduler.schedulers.background import BackgroundScheduler
-from src.telegram_bot import config
 from handlers import handlers, callback_handlers
-from pathlib import Path
-
 from src.core.link_parser import LinkParser
-from src.core.schedule_downloader import ScheduleDownloader
-from src.core.directory_manager import DownloadDirectoryManager
-from src.core.parser.schedule_manager import ScheduleManager
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-bot = Bot(token=config.BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
-dp = Dispatcher(storage=MemoryStorage())
-dp.include_router(handlers.router)
-dp.include_router(callback_handlers.router)
+from src.config import config
+from src.telegram_bot.utils.utils import update_complete
+from src.telegram_bot.middlewares.middleware import DBUpdateMiddlewareCallbackQuery, DBUpdateMiddlewareMessage
+from src.telegram_bot.utils.utils import configure_logging
+from src.base.broker_client import BrokerClient
 
 logger = logging.getLogger(__name__)
 
+bot = Bot(token=config.TELEGRAM_BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+dp = Dispatcher(storage=MemoryStorage())
 
-def update_schedule():
-    schedule_links = LinkParser.parse_link(url=config.SCHEDULE_URL)
-    directory_manager = DownloadDirectoryManager(base_directory="files")
+dp.include_router(handlers.router)
+dp.include_router(callback_handlers.router)
 
-    downloader = ScheduleDownloader(directory_manager=directory_manager)
-    downloader.download_schedule(url=schedule_links[0], study_type="full_time")
-    downloader.download_schedule(url=schedule_links[1], study_type="part_time")
+dp.message.middleware(DBUpdateMiddlewareMessage())
+dp.callback_query.middleware(DBUpdateMiddlewareCallbackQuery())
+link_parser = LinkParser()
 
-    manager = ScheduleManager()
+scheduler = AsyncIOScheduler(timezone='utc')
 
-    current_path = str(Path(__file__).resolve().parents[2])
 
-    manager.export_groups_to_json(file_name=current_path + "/files/schedule_full_time.xls", study_type="full_time")
-    manager.export_groups_to_json(file_name=current_path + "/files/schedule_part_time.xls", study_type="part_time")
+async def start_bot(client):
+    await client.send_message(b'bot_online', exchange='schedule_update_messages', routing_key=client.queue)
 
-    manager.export_schedule_to_json(file_name=current_path + "/files/schedule_full_time.xls")
-    manager.export_schedule_to_json(file_name=current_path + "/files/schedule_part_time.xls")
 
-    logger.info(msg="Расписание успешно обновлено")
+class TgBotClient(BrokerClient):
+    def __init__(self, update_complete):
+        super().__init__()
+        self.update_complete = update_complete
+
+    async def on_message(self, message):
+        print(message.body)
+        if message.body == b'prepare_for_schedule_update':
+            self.update_complete.clear()
+        if message.body == b'schedule_update_is_done':
+            self.update_complete.set()
+        await message.channel.basic_ack(
+            message.delivery.delivery_tag
+        )
+
+    async def exit(self):
+        print('Закрытие соединения')
+        await self.channel.queue_purge(self.queue)
+        await self.connection.close()
 
 
 async def main():
-    scheduler.start()
-    await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
+    p = psutil.Process()
+    p.cpu_affinity([0])
+    client = TgBotClient(update_complete)
+    try:
+        await client.connect(broker_url=config.BROKER_URL, exchange_name=config.BROKER_TG_BOT_EXCHANGE,
+                             queue=config.BROKER_TG_BOT_QUEUE)
+        await start_bot(client)
+        await asyncio.gather(dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types()),
+                             client.listen_messages())
+    except asyncio.exceptions.CancelledError:
+        await client.exit()
 
 
 if __name__ == "__main__":
-    storage = MemoryStorage()
-    scheduler = BackgroundScheduler(timezone='utc')
-    scheduler.add_job(update_schedule, 'interval', seconds=60 * 60 * 24)
-    logging.basicConfig(level=logging.INFO)
+    set_start_method('spawn')
     asyncio.run(main())

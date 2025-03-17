@@ -1,59 +1,70 @@
-import requests
-import logging
-
-from requests import Response
-
+from src.config import config
+import aiofiles
+import aiohttp
 from src.core.interfaces import ScheduleDownloaderInterface
+from src.telegram_bot.utils.utils import configure_logging
+
+configure_logging()
+import logging
 
 logger = logging.getLogger(__name__)
 
 
 class ScheduleDownloader(ScheduleDownloaderInterface):
-    def __init__(self, directory_manager):
-        self.directory_manager = directory_manager
 
-    def download_schedule(self, file_url: str, study_type: str):
-        schedule_data = self._download_schedule_file(file_url=file_url)
+    async def download_schedule(self, file_url: str | None, study_type: str) -> str | None:
+        if file_url is None:
+            return None
+        try:
+            logger.info(f'Начало скачивания расписания для {study_type} групп')
+            schedule_data = await self._download_schedule_file(file_url=file_url)
 
-        extension = self._generate_extension_for_file(file_url=file_url)
+            if schedule_data is None:
+                return None
 
-        save_path = self._create_save_path(study_type=study_type, extension=extension)
+            file_extension = await self._generate_extension_for_file(file_url=file_url)
 
-        self._save_file(data=schedule_data, save_path=save_path)
+            save_path = await self._create_save_path(study_type=study_type, extension=file_extension)
 
-        logger.info(f"Успешно сохранено расписание по пути {save_path}")
-
-        return save_path
-
-    @staticmethod
-    def _download_schedule_file(file_url: str) -> bytes:
-        response = requests.get(file_url)
-        if response.status_code != 200:
-            logger.error(f"Ошибка при скачивании расписания по ссылке {file_url}")
-            raise Exception(f"Ошибка при скачивании расписания по ссылке {file_url}")
-        else:
-            return response.content
+            await self._save_file(data=schedule_data, save_path=save_path)
+            return save_path
+        except Exception as e:
+            raise Exception(f'Произошла ошибка при скачивании расписания {e}')
 
     @staticmethod
-    def _generate_extension_for_file(file_url: str) -> str:
+    async def _download_schedule_file(file_url: str) -> bytes | None:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(file_url) as response:
+                    if response.status != 200:
+                        return None
+                    else:
+                        return await response.read()
+        except Exception as e:
+            logger.error(f'Ошибка при скачивании расписания по ссылке {file_url}, {e}')
+            raise Exception(f'Ошибка при скачивании расписания по ссылке {file_url}, {e}')
+
+    @staticmethod
+    async def _generate_extension_for_file(file_url: str) -> str:
         return file_url.split('/')[-1].split('.')[-1]
 
-    def _create_save_path(self, study_type: str, extension: str) -> str:
-        file_name = ""
+    @staticmethod
+    async def _create_save_path(study_type: str, extension: str) -> str:
+        file_name = ''
 
-        if study_type == "full_time":
-            file_name = "schedule_full_time"
-        elif study_type == "part_time":
-            file_name = "schedule_part_time"
+        if study_type == 'full_time':
+            file_name = 'schedule_full_time'
+        elif study_type == 'part_time':
+            file_name = 'schedule_part_time'
 
-        save_path = f"{self.directory_manager.get_download_directory()}/{file_name}.{extension}"
+        save_path = f'{config.SCHEDULE_FILES_DIRECTORY}\\{file_name}.{extension}'
         return save_path
 
     @staticmethod
-    def _save_file(data: bytes, save_path: str) -> None:
+    async def _save_file(data: bytes, save_path: str) -> None:
         try:
-            with open(save_path, "wb") as file:
-                file.write(data)
+            async with aiofiles.open(save_path, 'wb') as file:
+                await file.write(data)
         except Exception as e:
-            logger.error(f"Ошибка при сохранении файла расписания {save_path}")
-            raise Exception(f"Ошибка при сохранении файла расписания {save_path}")
+            logger.error(f'Ошибка при сохранении файла расписания {save_path}')
+            raise Exception(f'Ошибка при сохранении файла расписания {save_path}')

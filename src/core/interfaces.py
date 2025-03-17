@@ -26,7 +26,7 @@ class ScheduleParserInterface(ABC):
 class LinkParserInterface(ABC):
     @staticmethod
     @abstractmethod
-    def parse_link(url: str):
+    def parse_links(url: str):
         """Парсит сайт для поиска ссылки на скачивание расписания"""
         pass
 

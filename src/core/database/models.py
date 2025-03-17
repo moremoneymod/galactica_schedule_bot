@@ -14,14 +14,14 @@ class Base(DeclarativeBase):
 
 
 class Group(Base):
-    __tablename__ = "study_groups"
+    __tablename__ = 'study_groups'
     id: Mapped[int] = mapped_column(primary_key=True)
     group_type: Mapped[str] = mapped_column(String(30))
     name: Mapped[str] = mapped_column(String(30))
 
 
 class Schedule(Base):
-    __tablename__ = "schedule"
+    __tablename__ = 'schedule'
     id: Mapped[int] = mapped_column(primary_key=True)
     schedule_type: Mapped[str] = mapped_column(String(30))
     group_name: Mapped[str] = mapped_column(String(30))

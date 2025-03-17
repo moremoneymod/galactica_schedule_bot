@@ -6,7 +6,6 @@ from src.telegram_bot.keyboards.keyboards_for_handlers import create_keyboard_fo
 router = Router()
 
 
-
 @router.message(Command('start'))
 async def command_start_handler(message: Message) -> None:
     await message.answer("Данный бот предназначен для просмотра расписания в колледже 'Галактика' "
@@ -24,3 +23,8 @@ async def command_help(message: Message) -> None:
 async def command_schedule(message: Message) -> None:
     keyboard_for_groups = create_keyboard_for_study_type()
     await message.answer("~~~ Просмотр расписания ~~~", reply_markup=keyboard_for_groups)
+
+async def wait_for_db_update(message: Message) -> None:
+    await message.answer('Расписание обновляется. Подождите, пожалуйста')
+
+
